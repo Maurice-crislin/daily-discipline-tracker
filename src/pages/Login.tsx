@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState,useEffect } from "react";
+import { Link, useNavigate,useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,27 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  
+
+  useEffect(() => {
+    // 检查 URL 参数
+    if (searchParams.get("verified") === "true") {
+      // 1. 弹出专业提示
+      toast.success("账号验证成功！✨", {
+        description: "欢迎加入！现在你可以使用邮箱登录开启旅程了。",
+        duration: 6000,
+      });
+    
+      // 2. 这里的代码能让用户觉得这是个专门的确认页
+      // 如果你以后想做得更高级，可以加一个 Modal 弹窗
+    
+      // 3. 清理 URL，把后缀去掉，只留下 localhost:8080/login
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [searchParams]);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

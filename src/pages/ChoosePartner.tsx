@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,24 +9,67 @@ import { toast } from "@/components/ui/sonner";
 const ChoosePartner = () => {
   const [selected, setSelected] = useState<"boyfriend" | "girlfriend" | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true); // 新增：正在检查登录状态
   const navigate = useNavigate();
-  const { user } = useAuth();
+
+  // 页面加载时，等待 Auth 状态就绪
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setAuthChecking(false);
+      if (!user) {
+        toast.error("请先登录或完成邮箱验证");
+        navigate("/login");
+      }
+    };
+    checkUser();
+  }, [navigate]);
 
   const handleChoose = async () => {
-    if (!selected || !user) return;
+    if (!selected) {
+      toast.error("请先选择一个恋人类型");
+      return;
+    }
+
     setLoading(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ partner_type: selected })
-      .eq("user_id", user.id);
-    setLoading(false);
-    if (error) {
-      toast.error("保存失败，请重试");
-    } else {
+    try {
+      // 关键修复 1：直接从 API 获取当前 User，不依赖 useAuth Hook 的变量
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !currentUser) {
+        toast.error("登录状态已过期，请尝试刷新页面或重新登录");
+        navigate("/login");
+        return;
+      }
+
+      // 关键修复 2：使用 upsert 并指定冲突列
+      // 因为你的 profiles 表现在是空的，必须用 upsert 才能完成“第一次创建”
+      const { error: dbError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: currentUser.id,
+            partner_type: selected,
+          },
+          { onConflict: 'user_id' } // 确保根据 user_id 判断是插入还是更新
+        );
+
+      if (dbError) throw dbError;
+
       toast.success("选择成功！开始你的旅程吧 💖");
       navigate("/dashboard");
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error(error.message || "保存失败，请重试");
+    } finally {
+      setLoading(false);
     }
   };
+
+
+  if (authChecking) return <div>加载中...</div>; // 防止 user 为 null 时闪现错误
+
+
 
   const partners = [
     {

@@ -14,20 +14,35 @@ const Register = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      toast.error("密码至少需要6个字符");
-      return;
-    }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+  
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        // 这里的地址是用户在邮件里点击链接后跳转回来的地址
+        emailRedirectTo: `${window.location.origin}/login?verified=true`
+      }
+    });
+
     setLoading(false);
+
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("注册成功！");
-      navigate("/choose-partner");
+      // 关键点：signUp 成功后，如果 session 为空，说明需要去验证邮箱
+      if (data.user && !data.session) {
+        toast.success("注册成功！请前往邮箱查收验证邮件，点击链接后即可回来选择恋人 📧", {
+         duration: 6000,
+        });
+        // 建议：跳转到一个专门的 "check-email" 说明页面，或者留在原地
+      } else {
+        // 如果你关闭了验证，这里才会直接跳转
+        navigate("/choose-partner");
+      }
     }
   };
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
